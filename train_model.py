@@ -26,6 +26,6 @@ def prepare_single_data_window(trades_numpy, window_start, window_end, eval_wind
         # we hit target before stop loss
         y = hit_target_indices[0] < hit_stop_indices[0]
 
-    x = trades_numpy[window_start:window_end]
+    x = trades_numpy[window_start:window_end].flatten()
 
     return x, y
