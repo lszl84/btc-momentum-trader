@@ -46,4 +46,20 @@ def prepare_dataset(trades_numpy, sample_window_width, eval_window_width, req_ta
         x_list.append(x)
         y_list.append(y)
 
-    return x_list, y_list
+    return np.array(x_list), np.array(y_list)
+
+
+def balance_dataset(X, y):
+    positive_samples = X[y == True]
+    negative_samples = X[y == False]
+
+    pos_count = positive_samples.shape[0]
+
+    if negative_samples.shape[0] > pos_count:
+        negative_samples = negative_samples[:pos_count]
+
+    X = np.concatenate((positive_samples, negative_samples))
+    y = np.array([True] * positive_samples.shape[0] +
+                 [False] * negative_samples.shape[0])
+
+    return X, y

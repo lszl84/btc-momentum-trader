@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from train_model import prepare_single_data_window, prepare_dataset
+from train_model import prepare_single_data_window, prepare_dataset, balance_dataset
 
 
 class TestTrainingPipeline(unittest.TestCase):
@@ -120,6 +120,44 @@ class TestTrainingPipeline(unittest.TestCase):
         # we need total 2+5 trades
         self.assertEqual(len(X), 0)
         self.assertEqual(len(y), 0)
+
+    def test_balance_dataset(self):
+        trades = np.array([[1, 10456.20, 0.21], [1, 10456.20, 0.03], [2, 10457.11, 1.1],
+                           [3, 10458, 0.72], [4, 10461, 0.21], [5, 10464, 0.03],
+                           [6, 10470, 0.12], [6, 10512, 0.33], [7, 10476, 0.6],
+                           [7, 10430, 1.2], [7, 10560, 3.4]])
+
+        X, y = prepare_dataset(
+            trades, 2, 5, req_target_factor=1.005, req_stop_factor=0.999)
+
+        #         >>> trades[:, 1]*1.005
+        # array([10508.481  , 10508.481  , 10509.39555, 10510.29   , 10513.305  ,
+        #        10516.32   , 10522.35   , 10564.56   , 10528.38   , 10482.15   ])
+        # >>> trades[:, 1]*0.999
+        # array([10445.7438 , 10445.7438 , 10446.65289, 10447.542  , 10450.539  ,
+        #        10453.536  , 10459.53   , 10501.488  , 10465.524  , 10419.57   ])
+
+        self.assertEqual(len(X), 3)
+        self.assertEqual(len(y), 3)
+
+        self.assertEqual(y[0], False)
+        self.assertEqual(y[1], True)
+        # 10430 should stop us out, even though 10516.32 target is hit at 10560
+        self.assertEqual(y[2], False)
+
+        X, y = balance_dataset(X, y)
+
+        self.assertEqual(len(X), 2)
+        self.assertEqual(len(y), 2)
+
+        # positive samples are placed first by the balancer
+        self.assertEqual(y[0], True)
+        self.assertEqual(y[1], False)
+
+        # can't guarantee the order in True/False groups, but since we have only one
+        # True trade, let's check its x sample
+        self.assertTrue(np.allclose(
+            X[0], [2, 10457.11, 1.1, 3, 10458, 0.72]))
 
 
 if __name__ == '__main__':
