@@ -9,7 +9,7 @@ COL_PRICE = 1
 COL_QUANTITY = 2
 
 
-def prepare_single_data_window(trades_numpy, window_start, window_end, eval_window_width, req_target_factor=1.005, req_stop_factor=0.999):
+def prepare_single_data_window(trades_numpy, window_start, window_end, eval_window_width, req_target_factor, req_stop_factor):
     target_price = trades_numpy[window_end-1, COL_PRICE] * req_target_factor
     stop_price = trades_numpy[window_end-1, COL_PRICE] * req_stop_factor
 
@@ -32,3 +32,18 @@ def prepare_single_data_window(trades_numpy, window_start, window_end, eval_wind
     x = trades_numpy[window_start:window_end].flatten()
 
     return x, y
+
+
+def prepare_dataset(trades_numpy, sample_window_width, eval_window_width, req_target_factor=1.005, req_stop_factor=0.999):
+
+    x_list = []
+    y_list = []
+
+    for i in range(0, trades_numpy.shape[0] - sample_window_width - eval_window_width + 1, sample_window_width):
+        x, y = prepare_single_data_window(
+            trades_numpy, i, i + sample_window_width, eval_window_width, req_target_factor, req_stop_factor)
+
+        x_list.append(x)
+        y_list.append(y)
+
+    return x_list, y_list
