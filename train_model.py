@@ -19,9 +19,12 @@ def prepare_single_data_window(trades_numpy, window_start, window_end, eval_wind
     hit_target_indices = np.where(eval_window_prices >= target_price)[0]
     hit_stop_indices = np.where(eval_window_prices <= stop_price)[0]
 
-    if hit_target_indices.shape[0] == 0 or hit_stop_indices.shape[0] == 0:
-        # successful trade needs to hit the target, to make sure we earn more than paid with fees
+    if hit_target_indices.shape[0] == 0:
+        # didn't hit target
         y = False
+    elif hit_stop_indices.shape[0] == 0:
+        # hit target (elsif!) and not stopped out -> success
+        y = True
     else:
         # we hit target before stop loss
         y = hit_target_indices[0] < hit_stop_indices[0]
