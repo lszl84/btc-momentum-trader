@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn import metrics
-
+import datetime
 
 COL_TIME = 0
 COL_PRICE = 1
@@ -86,22 +86,84 @@ def test_model(model, X_test, y_test):
     print(metrics.classification_report(y_test, y_pred))
 
 
+def unix_ms_to_datetime_string(unix_ms):
+    dispt = datetime.datetime.fromtimestamp(unix_ms/1000.0)
+    return str(dispt)
+
+
+def test_by_simulating_trade(model, trades_numpy, starting_capital, absolute_risk_per_trade, sample_window_width,  req_target_factor=1.005, req_stop_factor=0.999):
+
+    fee = 0.00075
+    capital = starting_capital
+
+    all_samples = [trades_numpy[i:i+sample_window_width].flatten()
+                   for i in range(0, len(trades_numpy) - sample_window_width)]
+    all_preds = model.predict(all_samples)
+
+    i = 0
+    while i < len(trades_numpy) - sample_window_width:
+        pred = all_preds[i]
+
+        if pred > 0:
+            market_index = i + sample_window_width
+            buy_price = trades_numpy[market_index, COL_PRICE]
+            stop_price = buy_price * req_stop_factor
+            target_price = buy_price * req_target_factor
+
+            position_size = absolute_risk_per_trade / (buy_price - stop_price)
+
+            time_str = unix_ms_to_datetime_string(
+                trades_numpy[market_index, COL_TIME])
+
+            print(f"[{time_str}]* -OPENED- long position (${buy_price:.3f}), tgt ${target_price:.3f}, stp ${stop_price:.3f}, pos size = {position_size:.6f}")
+
+            # simulate hitting target or stopping out
+            i = market_index + 1
+            position_closed = False
+            while i < len(trades_numpy) and not position_closed:
+                current_price = trades_numpy[i, COL_PRICE]
+
+                if current_price <= stop_price:
+                    sell_price = current_price
+                    position_closed = True
+                    close_reason = "STOPPED OUT"
+
+                elif current_price >= target_price:
+                    sell_price = target_price
+                    position_closed = True
+                    close_reason = "TARGET HIT"
+
+                if position_closed:
+                    result = position_size * \
+                        ((1.0 - fee) * sell_price - (1.0 + fee) * buy_price)
+
+                    capital += result
+                    time_str = unix_ms_to_datetime_string(
+                        trades_numpy[i, COL_TIME])
+
+                    print(
+                        f'[{time_str}] * {close_reason} long position (${buy_price:.3f}) at ${sell_price:.3f} for PnL={result:.3f}. Capital = ${capital:.3f}')
+
+                i += 1
+        else:
+            i += 1
+
+
 if __name__ == '__main__':
 
     train_df = pd.read_csv(
         'data/websocket/trades.csv')
 
-    pivot = 70000
+    pivot = 50000
+    sample_window_width = 300
 
     train_data = train_df[:pivot].to_numpy()
     test_data = train_df[pivot:].to_numpy()
 
-    X_train, y_train = prepare_dataset(train_data, 200, 18000)
-    X_test, y_test = prepare_dataset(test_data, 200, 18000)
-
-    X_train, y_train = balance_dataset(X_train, y_train, 4)
-    X_test, y_test = balance_dataset(X_test, y_test, 4)
+    X_train, y_train = prepare_dataset(train_data, sample_window_width, 18000)
+    X_test, y_test = prepare_dataset(test_data, sample_window_width, 18000)
 
     model = train_model(X_train, y_train)
 
     test_model(model, X_test, y_test)
+    test_by_simulating_trade(model, test_data, 600, 0.50, sample_window_width)
